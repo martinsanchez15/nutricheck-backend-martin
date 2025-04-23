@@ -15,11 +15,11 @@ namespace NutriCheck.Controllers
     public class AuthController : ControllerBase
     {
         private readonly MongoDbService _db;
-        private readonly JwtSettings _jwt;
+        private readonly JwtSettings  _jwt;
 
         public AuthController(MongoDbService db, IOptions<JwtSettings> jwtOpts)
         {
-            _db = db;
+            _db  = db;
             _jwt = jwtOpts.Value;
         }
 
@@ -29,7 +29,8 @@ namespace NutriCheck.Controllers
             var user = _db.Nutricionistas
                          .Find(n => n.Email == cred.Email && n.Password == cred.Password)
                          .FirstOrDefault();
-            if (user == null) return Unauthorized("Credenciales inválidas");
+            if (user == null) 
+                return Unauthorized("Credenciales inválidas");
 
             var claims = new[]
             {
@@ -37,7 +38,7 @@ namespace NutriCheck.Controllers
                 new Claim(ClaimTypes.Role, user.Rol)
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.Secret));
+            var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.Secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(

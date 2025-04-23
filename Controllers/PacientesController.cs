@@ -12,8 +12,8 @@ namespace NutriCheck.Controllers
         public PacientesController(MongoDbService db) => _db = db;
 
         [HttpGet]
-        public ActionResult<List<Paciente>> GetAll()
-            => Ok(_db.Pacientes.Find(_ => true).ToList());
+        public ActionResult<List<Paciente>> GetAll() =>
+            Ok(_db.Pacientes.Find(_ => true).ToList());
 
         [HttpGet("{id:length(24)}")]
         public ActionResult<Paciente> Get(string id)
@@ -26,7 +26,7 @@ namespace NutriCheck.Controllers
         [HttpPost]
         public ActionResult<Paciente> Create(Paciente paciente)
         {
-            if (string.IsNullOrWhiteSpace(paciente.Nombre)) 
+            if (string.IsNullOrWhiteSpace(paciente.Nombre))
                 return BadRequest("Nombre requerido");
             _db.Pacientes.InsertOne(paciente);
             return CreatedAtAction(nameof(Get), new { id = paciente.Id }, paciente);

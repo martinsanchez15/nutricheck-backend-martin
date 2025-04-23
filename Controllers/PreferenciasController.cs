@@ -25,7 +25,6 @@ namespace NutriCheck.Controllers
         {
             if (string.IsNullOrWhiteSpace(pref.Tipo))
                 return BadRequest("Tipo requerido");
-            // validar paciente existe
             var existe = _db.Pacientes.Find(p => p.Id == pref.PacienteId).Any();
             if (!existe) return BadRequest("Paciente no existe");
 
