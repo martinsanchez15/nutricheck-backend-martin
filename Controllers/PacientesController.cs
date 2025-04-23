@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using MongoDB.Driver;
 using NutriCheck.Data;
 using NutriCheck.Models;
-using MongoDB.Bson;
 
 namespace NutriCheck.Controllers
 {
@@ -10,54 +8,46 @@ namespace NutriCheck.Controllers
     [Route("api/[controller]")]
     public class PacientesController : ControllerBase
     {
-        private readonly IMongoCollection<Paciente> _pacientes;
+        private readonly MongoDbService _db;
+        public PacientesController(MongoDbService db) => _db = db;
 
-        public PacientesController(MongoDbService mongoDbService)
-        {
-            _pacientes = mongoDbService.Pacientes;
-        }
-
-        // Crear paciente
-        [HttpPost]
-        public async Task<ActionResult<Paciente>> CrearPaciente([FromBody] Paciente paciente)
-        {
-            if (string.IsNullOrWhiteSpace(paciente.Nombre) || paciente.Edad <= 0)
-                return BadRequest("El nombre y la edad del paciente son obligatorios y válidos.");
-
-            await _pacientes.InsertOneAsync(paciente);
-            return CreatedAtAction(nameof(CrearPaciente), new { id = paciente.Id }, paciente);
-        }
-
-        // Obtener todos los pacientes
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Paciente>>> ObtenerPacientes()
+        public ActionResult<List<Paciente>> GetAll()
+            => Ok(_db.Pacientes.Find(_ => true).ToList());
+
+        [HttpGet("{id:length(24)}")]
+        public ActionResult<Paciente> Get(string id)
         {
-            var pacientes = await _pacientes.Find(_ => true).ToListAsync();
-            return Ok(pacientes);
+            var p = _db.Pacientes.Find(x => x.Id == id).FirstOrDefault();
+            if (p == null) return NotFound();
+            return Ok(p);
         }
 
-        // Editar paciente
-        [HttpPut("{id}")]
-        public async Task<IActionResult> EditarPaciente(string id, [FromBody] Paciente pacienteActualizado)
+        [HttpPost]
+        public ActionResult<Paciente> Create(Paciente paciente)
         {
-            var filter = Builders<Paciente>.Filter.Eq(p => p.Id, id);
-            var result = await _pacientes.ReplaceOneAsync(filter, pacienteActualizado);
-
-            if (result.MatchedCount == 0)
-                return NotFound();
-
-            return Ok(pacienteActualizado);
+            if (string.IsNullOrWhiteSpace(paciente.Nombre)) 
+                return BadRequest("Nombre requerido");
+            _db.Pacientes.InsertOne(paciente);
+            return CreatedAtAction(nameof(Get), new { id = paciente.Id }, paciente);
         }
 
-        // Eliminar paciente
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> EliminarPaciente(string id)
+        [HttpPut("{id:length(24)}")]
+        public IActionResult Update(string id, Paciente pacienteIn)
         {
-            var result = await _pacientes.DeleteOneAsync(p => p.Id == id);
+            var exists = _db.Pacientes.Find(x => x.Id == id).Any();
+            if (!exists) return NotFound();
+            pacienteIn.Id = id;
+            _db.Pacientes.ReplaceOne(x => x.Id == id, pacienteIn);
+            return NoContent();
+        }
 
-            if (result.DeletedCount == 0)
-                return NotFound();
-
+        [HttpDelete("{id:length(24)}")]
+        public IActionResult Delete(string id)
+        {
+            var exists = _db.Pacientes.Find(x => x.Id == id).Any();
+            if (!exists) return NotFound();
+            _db.Pacientes.DeleteOne(x => x.Id == id);
             return NoContent();
         }
     }

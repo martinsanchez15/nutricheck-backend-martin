@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using NutriCheck.Models;
 using NutriCheck.Data;
-using Microsoft.EntityFrameworkCore;
+using NutriCheck.Models;
 
 namespace NutriCheck.Controllers
 {
@@ -9,78 +8,47 @@ namespace NutriCheck.Controllers
     [Route("api/[controller]")]
     public class ComidasController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly MongoDbService _db;
+        public ComidasController(MongoDbService db) => _db = db;
 
-        public ComidasController(AppDbContext context)
-        {
-            _context = context;
-        }
-
-        /// <summary>
-        /// Registra una comida consumida por un paciente en un momento del día.
-        /// </summary>
-        /// <param name="comida">Datos de la comida (paciente, tipo, nombre, calorías, fecha)</param>
-        /// <returns>Comida registrada</returns>
-        [HttpPost]
-        [ProducesResponseType(StatusCodes.Status201Created)]
-        public async Task<ActionResult<Comida>> RegistrarComida([FromBody] Comida comida)
-        {
-            _context.Comidas.Add(comida);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(RegistrarComida), new { id = comida.Id }, comida);
-        }
-
-        /// <summary>
-        /// Devuelve las comidas registradas en una fecha específica, agrupadas por paciente.
-        /// </summary>
-        /// <param name="fecha">Fecha a consultar (formato: yyyy-MM-dd)</param>
-        /// <returns>Lista de comidas agrupadas por paciente para ese día</returns>
         [HttpGet]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public ActionResult<IEnumerable<object>> ObtenerComidasPorFecha([FromQuery] DateTime fecha)
+        public ActionResult<List<Comida>> GetAll() => 
+            Ok(_db.Comidas.Find(_ => true).ToList());
+
+        [HttpGet("{id:length(24)}")]
+        public ActionResult<Comida> Get(string id)
         {
-            var comidas = _context.Comidas
-                .Where(c => c.Fecha.Date == fecha.Date)
-                .Include(c => c.Paciente)
-                .ToList();
-
-            var resultado = comidas.Select(c => new
-            {
-                c.PacienteId,
-                NombrePaciente = c.Paciente != null ? c.Paciente.Nombre : "Sin nombre",
-                c.Tipo,
-                c.Nombre,
-                c.Calorias,
-                Fecha = c.Fecha.ToShortDateString()
-            });
-
-            return Ok(resultado);
+            var c = _db.Comidas.Find(x => x.Id == id).FirstOrDefault();
+            if (c == null) return NotFound();
+            return Ok(c);
         }
 
-        /// <summary>
-        /// Devuelve las comidas faltantes para un paciente en una fecha específica.
-        /// Los tipos de comidas esperados son: Desayuno, Almuerzo, Merienda y Cena.
-        /// </summary>
-        /// <param name="pacienteId">ID del paciente para el cual se consultarán las comidas faltantes</param>
-        /// <param name="fecha">Fecha a consultar (formato: yyyy-MM-dd)</param>
-        /// <returns>Lista de tipos de comidas faltantes para ese paciente y fecha</returns>
-        [HttpGet("faltantes")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public ActionResult<IEnumerable<string>> ObtenerComidasFaltantes(
-            [FromQuery] int pacienteId, [FromQuery] DateTime fecha)
+        [HttpPost]
+        public ActionResult<Comida> Create(Comida c)
         {
-            var tiposEsperados = new[] { "Desayuno", "Almuerzo", "Merienda", "Cena" };
+            if (string.IsNullOrWhiteSpace(c.Nombre)) 
+                return BadRequest("Nombre requerido");
+            _db.Comidas.InsertOne(c);
+            return CreatedAtAction(nameof(Get), new { id = c.Id }, c);
+        }
 
-            var tiposRegistrados = _context.Comidas
-                .Where(c => c.PacienteId == pacienteId && c.Fecha.Date == fecha.Date)
-                .Select(c => c.Tipo)
-                .ToList();
+        [HttpPut("{id:length(24)}")]
+        public IActionResult Update(string id, Comida c)
+        {
+            var exists = _db.Comidas.Find(x => x.Id == id).Any();
+            if (!exists) return NotFound();
+            c.Id = id;
+            _db.Comidas.ReplaceOne(x => x.Id == id, c);
+            return NoContent();
+        }
 
-            var faltantes = tiposEsperados
-                .Where(tipo => !tiposRegistrados.Contains(tipo, StringComparer.OrdinalIgnoreCase))
-                .ToList();
-
-            return Ok(faltantes);
+        [HttpDelete("{id:length(24)}")]
+        public IActionResult Delete(string id)
+        {
+            var exists = _db.Comidas.Find(x => x.Id == id).Any();
+            if (!exists) return NotFound();
+            _db.Comidas.DeleteOne(x => x.Id == id);
+            return NoContent();
         }
     }
 }
